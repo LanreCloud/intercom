@@ -1,76 +1,82 @@
 /**
- * TracOracle — P2P Prediction Market on Trac Network
+ * TracSkills — P2P Skill Registry for AI Agents on Trac Network
  * Fork of: https://github.com/Trac-Systems/intercom
  *
- * Agents and humans create YES/NO prediction markets, stake TNK,
- * an oracle resolves the outcome, and winners split the pool.
+ * Agents register skills, set rates, get hired, and get paid.
+ * Think of it as a decentralised LinkedIn/Fiverr for AI agents.
  *
- * Usage: pear run . store1
- *        pear run . store2 --subnet-bootstrap <hex-from-store1>
+ * Run: pear run --tmp-store --no-pre . --peer-store-name admin --msb-store-name admin-msb --subnet-channel tracskills-v1
  */
 
 'use strict'
 
-import Peer from 'trac-peer'
-import { Oracle } from './features/oracle/index.js'
+const Pear = require('pear-interface')
 
-// ─── CONFIG ───────────────────────────────────────────────────────────────────
-// After first run, replace with your Bootstrap's subnet-bootstrap hex
-// (copied from terminal output), then re-run.
-const config = {
-  // Channel name — exactly 32 chars
-  channel: 'tracoracle-mainnet-v1-000000000',
+/* ─── Trac peer bootstrap ─────────────────────────────────────────────────── */
+const { Tracy } = require('trac-peer')
 
-  contract: './contract/contract.js',
-  protocol: './contract/protocol.js',
-
-  features: [
-    './features/oracle/index.js',
-    './features/sidechannel/index.js',
+const tracy = new Tracy({
+  contract : require('./contract/contract'),
+  protocol : require('./contract/protocol'),
+  features : [
+    require('./features/timer'),
   ],
-
-  // Expose HTTP API so external agents/wallets can interact
-  api_tx_exposed:  true,
-  api_msg_exposed: true,
-}
-
-// ─── BOOT ─────────────────────────────────────────────────────────────────────
-const peer = new Peer(config)
-
-peer.on('ready', (info) => {
-  console.log('\n╔══════════════════════════════════════════╗')
-  console.log('║   TracOracle — P2P Prediction Markets    ║')
-  console.log('╚══════════════════════════════════════════╝\n')
-  console.log(`Peer Address : ${info.address}`)
-  console.log(`Writer Key   : ${info.writer_key}`)
-  console.log(`Channel      : ${config.channel}\n`)
-  console.log('Commands (all use /tx --command \'{ ... }\'):')
-  console.log('  market_create   — create a new prediction market')
-  console.log('  market_list     — list open markets')
-  console.log('  market_get      — get one market by id')
-  console.log('  market_stake    — stake TNK on YES or NO')
-  console.log('  market_resolve  — resolve with outcome (oracle only)')
-  console.log('  market_claim    — claim winnings after resolution')
-  console.log('  my_stakes       — show all your active stakes')
-  console.log('\nFull examples in README.md\n')
 })
 
-// Sidechannel: receive live market activity notifications
-peer.on('sc_message', (msg) => {
+tracy.on('ready', (info) => {
+  console.log('')
+  console.log('╔════════════════════════════════════════════╗')
+  console.log('║   TracSkills — P2P Skill Registry          ║')
+  console.log('║   The LinkedIn for AI Agents on Trac Net   ║')
+  console.log('╚════════════════════════════════════════════╝')
+  console.log('')
+  console.log('Peer address : ' + info.address)
+  console.log('Channel      : tracskills-v1')
+  console.log('')
+  console.log('Quick commands:')
+  console.log('  Register a skill:')
+  console.log('    /tx --command \'{ "op": "skill_register", "name": "PDF Summariser", "category": "ai", "description": "I summarise any PDF in under 60s", "rate": 10, "rate_unit": "TNK" }\'')
+  console.log('')
+  console.log('  Search skills:')
+  console.log('    /tx --command \'{ "op": "skill_search", "keyword": "summarise" }\'')
+  console.log('')
+  console.log('  Hire an agent:')
+  console.log('    /tx --command \'{ "op": "skill_hire", "skill_id": "<id>", "job": "Summarise this PDF: https://..." }\'')
+  console.log('')
+  console.log('  Complete a job (agent):')
+  console.log('    /tx --command \'{ "op": "job_complete", "job_id": "<id>", "result": "Summary: ..." }\'')
+  console.log('')
+  console.log('  Leave a review:')
+  console.log('    /tx --command \'{ "op": "skill_review", "skill_id": "<id>", "rating": 5, "comment": "Great work!" }\'')
+  console.log('')
+  console.log('  List all skills:')
+  console.log('    /tx --command \'{ "op": "skill_list" }\'')
+  console.log('')
+  console.log('  View my profile:')
+  console.log('    /tx --command \'{ "op": "profile_get" }\'')
+  console.log('')
+  console.log('Full usage in README.md — type /help anytime')
+  console.log('')
+})
+
+tracy.on('sidechannel', (msg) => {
   try {
     const data = JSON.parse(msg.data)
     switch (data.type) {
-      case 'stake_placed':
-        console.log(`\n📊 [${msg.channel}] New stake on market #${data.market_id.slice(0,8)}… — ${data.side.toUpperCase()} ${data.amount} TNK by ${data.staker.slice(0,8)}…`)
+      case 'skill_registered':
+        console.log('\n🆕 [tracskills] New skill: "' + data.name + '" by ' + data.agent.slice(0,10) + '… (' + data.category + ') — ' + data.rate + ' ' + data.rate_unit)
         break
-      case 'market_resolved':
-        console.log(`\n🏁 [${msg.channel}] Market #${data.market_id.slice(0,8)}… RESOLVED → ${data.outcome.toUpperCase()}`)
+      case 'job_posted':
+        console.log('\n💼 [tracskills] Job posted on skill #' + data.skill_id.slice(0,8) + '… by ' + data.hirer.slice(0,10) + '…')
         break
-      case 'winnings_claimed':
-        console.log(`\n💰 [${msg.channel}] ${data.winner.slice(0,8)}… claimed ${data.amount} TNK from market #${data.market_id.slice(0,8)}…`)
+      case 'job_completed':
+        console.log('\n✅ [tracskills] Job #' + data.job_id.slice(0,8) + '… completed by ' + data.agent.slice(0,10) + '…')
+        break
+      case 'review_posted':
+        console.log('\n⭐ [tracskills] Review on skill #' + data.skill_id.slice(0,8) + '…: ' + '★'.repeat(data.rating) + ' — ' + data.comment)
         break
     }
   } catch (_) {}
 })
 
-peer.start()
+tracy.start()

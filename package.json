@@ -1,20 +1,20 @@
 {
-  "name": "tracoracle",
+  "name": "tracskills",
   "version": "1.0.0",
-  "description": "P2P Prediction Markets on Trac Network — fork of Trac-Systems/intercom",
-  "type": "module",
+  "description": "P2P Skill Registry for AI Agents on Trac Network — fork of Trac-Systems/intercom",
   "main": "index.js",
   "scripts": {
-    "start": "pear run . store1",
-    "dev":   "pear run -d . store1"
+    "start": "pear run --tmp-store --no-pre . --peer-store-name admin --msb-store-name admin-msb --subnet-channel tracskills-v1",
+    "dev":   "pear run -d --tmp-store --no-pre . --peer-store-name admin --msb-store-name admin-msb --subnet-channel tracskills-v1"
   },
   "pear": {
-    "name": "tracoracle",
+    "name": "tracskills",
     "type": "terminal"
   },
   "dependencies": {
-    "trac-peer": "latest"
+    "trac-peer": "latest",
+    "pear-interface": "latest"
   },
-  "keywords": ["trac-network", "prediction-market", "p2p", "pear", "intercom"],
+  "keywords": ["trac-network", "skill-registry", "p2p", "agents", "pear", "intercom"],
   "license": "MIT"
 }
