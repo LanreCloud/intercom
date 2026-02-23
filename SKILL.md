@@ -1,140 +1,183 @@
-# SKILL.md — TracOracle (Prediction Markets on Trac Network)
+# SKILL.md — TracSwitch (Dead Man's Switch on Trac Network)
 
-> Parent stack: https://github.com/Trac-Systems/intercom  
-> This file gives AI coding agents everything needed to work on TracOracle.
-
----
-
-## What TracOracle Does
-
-A fully P2P prediction market. Agents and humans:
-1. **Create** a YES/NO question with a TNK stake pool
-2. **Stake** TNK on their predicted outcome before the market closes
-3. A designated **oracle** resolves the outcome (YES / NO / VOID)
-4. **Winners claim** their proportional share of the total pool
-
-Market lifecycle:
-```
-open ──(closes_at)──▶ closed ──(oracle resolves)──▶ resolved ──▶ payouts
-                            ╲──(oracle misses deadline)──▶ void (full refunds)
-```
+> Fork of: https://github.com/Trac-Systems/intercom
+> Full agent instructions for working with the TracSwitch codebase.
 
 ---
 
-## Runtime
+## What TracSwitch Does
+
+TracSwitch is a fully P2P Dead Man's Switch built on Trac Network.
+
+You create a switch with a secret message and a list of recipients. You must check in before the deadline. If you miss the deadline — the message is automatically delivered to your recipients by the network. No central server. No trust required.
+
+```
+You create switch → message: "My seed phrase is..." → recipients: [trac1...]
+         ↓
+You check in every 24h → deadline resets → message stays held
+         ↓
+You MISS a check-in → deadline passes → message auto-delivers
+```
+
+**Use cases:**
+- Digital will / estate instructions
+- Whistleblower dead drop
+- Secret key handover
+- Proof of life for agents
+- Automated contingency messages
+
+---
+
+## Runtime — CRITICAL
 
 **Always use Pear. Never `node index.js`.**
 
 ```bash
 npm install -g pear
 npm install
-pear run . store1        # first peer / bootstrap
-pear run . store2        # second peer (same subnet)
+pear run --tmp-store --no-pre . --peer-store-name admin --msb-store-name admin-msb --subnet-channel tracswitch-v1
 ```
 
-First-run bootstrap setup:
-1. `pear run . store1` → copy **Writer Key** from output
-2. Open `index.js` → paste as `bootstrap` option in `new Peer(config)`
-3. `/exit` → rerun `pear run . store1`
-4. `/add_admin --address YourPeerAddress`
-5. `/set_auto_add_writers --enabled 1`
+Second peer (for testing delivery):
+```bash
+pear run --tmp-store --no-pre . --peer-store-name peer2 --msb-store-name peer2-msb --subnet-channel tracswitch-v1
+```
 
 ---
 
 ## All Commands
 
-Every command is sent as: `/tx --command '{ "op": "...", ...args }'`
+Every command uses: `/tx --command '{ "op": "...", ...args }'`
 
-### Create a market
+### Create a switch (arms immediately)
 ```
-/tx --command '{ "op": "market_create", "question": "Will BTC hit $200k before Dec 2026?", "category": "crypto", "closes_in": 86400, "resolve_by": 604800, "oracle_address": "trac1..." }'
+/tx --command '{ "op": "switch_create", "label": "My Will", "message": "My instructions are...", "recipients": ["trac1abc...", "trac1xyz..."], "checkin_interval": 86400 }'
 ```
-- `closes_in`: seconds until staking closes (min 60, max 2592000)
-- `resolve_by`: seconds until oracle must resolve (must be > closes_in)
-- `oracle_address`: the Trac address that is allowed to call market_resolve
-- `category`: one of `crypto`, `sports`, `politics`, `science`, `tech`, `other`
+- `label` — human-readable name for this switch
+- `message` — the content delivered if you miss a check-in
+- `recipients` — array of Trac addresses who receive the message (max 20)
+- `checkin_interval` — seconds between required check-ins (min 60, max 31536000)
 
-### Stake on a market
+### Check in (resets your deadline)
 ```
-/tx --command '{ "op": "market_stake", "market_id": "<uuid>", "side": "yes", "amount": 500 }'
-```
-
-### List open markets
-```
-/tx --command '{ "op": "market_list", "state": "open", "category": "crypto", "limit": 10 }'
+/tx --command '{ "op": "switch_checkin", "switch_id": "<uuid>" }'
 ```
 
-### Get one market
+### Check in ALL your switches at once
 ```
-/tx --command '{ "op": "market_get", "market_id": "<uuid>" }'
+/tx --command '{ "op": "checkin_all" }'
+```
+Use this as your daily habit — one command resets all active switches.
+
+### List your switches
+```
+/tx --command '{ "op": "switch_list" }'
+```
+Shows state, time remaining, last check-in, deadline for each switch.
+
+### Get one switch
+```
+/tx --command '{ "op": "switch_get", "switch_id": "<uuid>" }'
 ```
 
-### Resolve a market (oracle only)
+### Disarm a switch (cancel it permanently)
 ```
-/tx --command '{ "op": "market_resolve", "market_id": "<uuid>", "outcome": "yes" }'
-```
-- Only the address set as `oracle_address` at market creation can call this
-- `outcome`: `"yes"`, `"no"`, or `"void"` (void = full refunds)
-
-### Claim winnings
-```
-/tx --command '{ "op": "market_claim", "market_id": "<uuid>" }'
-```
-- Only callable after resolution
-- One-time per address
-- Proportional payout: `(your_stake / winning_pool) × total_pool`
-
-### View your stakes
-```
-/tx --command '{ "op": "my_stakes" }'
+/tx --command '{ "op": "switch_disarm", "switch_id": "<uuid>" }'
 ```
 
-### Monitor live activity (sidechannel)
+### Check your inbox (messages delivered to you)
 ```
-/sc_join --channel "tracoracle-activity"
+/tx --command '{ "op": "inbox" }'
+```
+
+### Watch live activity
+```
+/sc_join --channel "tracswitch-activity"
+```
+
+---
+
+## Switch Lifecycle
+
+```
+armed ──(owner checks in)──▶ armed (deadline reset)
+      ──(owner disarms)────▶ disarmed
+      ──(deadline passes)──▶ triggered (message delivered to recipients)
 ```
 
 ---
 
 ## Key Files
 
-| File | What to change |
-|------|---------------|
-| `index.js` | Entry point. Add new sidechannel message types here. |
-| `contract/contract.js` | State machine. Add new market types or fields here. |
-| `contract/protocol.js` | Router. Add new `op` cases here. |
-| `features/oracle/index.js` | Oracle watcher. Change auto-void logic or tick interval here. |
+| File | Purpose |
+|------|---------|
+| `index.js` | Entry point — boots peer, prints commands, handles sidechannel display |
+| `contract/contract.js` | State machine — switches, check-ins, inbox delivery |
+| `contract/protocol.js` | Op router — maps `/tx` commands to contract methods |
+| `features/timer/index.js` | **The enforcer** — scans deadlines every 60s, triggers fired switches |
 
-**Pattern:** every new feature = contract method + protocol case + README example.
+The timer feature is what makes this a real Dead Man's Switch — it runs independently on indexer nodes and cannot be stopped by the switch owner.
 
 ---
 
-## Payout Math
+## Data Model
 
-```
-total_pool   = yes_pool + no_pool
-your_payout  = floor( (your_winning_stake / winning_pool) * total_pool )
+### Switch
+```json
+{
+  "id": "uuid",
+  "owner": "trac1...",
+  "label": "My Will",
+  "message": "My instructions are...",
+  "recipients": ["trac1abc...", "trac1xyz..."],
+  "checkin_interval": 86400,
+  "last_checkin": 1234567890000,
+  "deadline": 1234654290000,
+  "state": "armed | triggered | disarmed",
+  "checkin_count": 7,
+  "triggered_at": null,
+  "disarmed_at": null,
+  "created_at": 1234567890000
+}
 ```
 
-Example: 1000 TNK YES pool, 500 TNK NO pool. You staked 200 TNK on YES.
-Payout = floor((200 / 1000) × 1500) = 300 TNK (50 TNK profit).
+### Inbox message (delivered to recipient)
+```json
+{
+  "from": "trac1...",
+  "switch_id": "uuid",
+  "label": "My Will",
+  "message": "My instructions are...",
+  "delivered_at": 1234567890000
+}
+```
+
+---
+
+## Rules
+
+- Only the switch **owner** can check in or disarm
+- Once **triggered**, a switch cannot be reset — message is already delivered
+- Once **disarmed**, a switch cannot be re-armed (create a new one)
+- Recipients cannot read the message until the switch triggers
+- The timer feature runs on **indexer/bootstrap nodes only** — it cannot be blocked by the owner
+
+---
+
+## Good First Tasks for Agents
+
+1. Add `message_encrypt` — encrypt message with recipient's public key so only they can read it
+2. Add `checkin_interval` update — allow owner to change the interval before next deadline
+3. Add `grace_period` — a short window after deadline before triggering (in case of network issues)
+4. Add `trigger_count` per recipient — how many switches have been delivered to this address
+5. Add `switch_preview` — show metadata (label, deadline) to recipients without revealing message
 
 ---
 
 ## Do Not
 
-- Never call `node index.js` — always `pear run . store1`
-- Never add SQL or central databases — all state via Trac's K/V store (`this.db`)
-- Never let non-oracle addresses call `market_resolve`
-- Never allow staking after `closes_at`
-- Never allow double-claiming (`market.claimed[address]` check)
-
----
-
-## Good First Agent Tasks
-
-1. Add `market_search` op — filter markets by keyword in question text
-2. Add `min_pool` filter to `market_list` — only show markets with enough liquidity
-3. Add a `fee` field — small % of pool goes to oracle as compensation
-4. Add multi-outcome markets: `outcome` is a string chosen from a list, not just YES/NO
-5. Add a leaderboard: track each address's prediction win rate in contract state
+- Never run with `node index.js` — always `pear run ...`
+- Never allow recipients to read the message before triggering
+- Never allow the owner to trigger their own switch manually (defeats the purpose)
+- Never allow re-arming a triggered or disarmed switch
+- Never skip the timer tick — it is the core enforcement mechanism

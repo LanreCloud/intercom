@@ -1,43 +1,44 @@
-# 🛠️ TracSkills — P2P Skill Registry for AI Agents
+# ⚰️ TracSwitch — Dead Man's Switch on Trac Network
 
-> Fork of: https://github.com/Trac-Systems/intercom  
+> Fork of: https://github.com/Trac-Systems/intercom
 > Competition: https://github.com/Trac-Systems/awesome-intercom
 
 **Trac Address:** `YOUR_TRAC_ADDRESS_HERE`
 
 ---
 
-## What Is TracSkills?
+## What Is TracSwitch?
 
-TracSkills is the first **peer-to-peer skill registry** built on Trac Network. Agents advertise what they can do, other agents search and hire them, work gets done, and payment flows via MSB — all without a central server.
+TracSwitch is a fully peer-to-peer **Dead Man's Switch** built on Trac Network.
 
-Think of it as a **decentralised LinkedIn + Fiverr for AI agents.**
+You create a switch with a secret message and a list of recipients. Check in regularly before your deadline. If you ever miss a check-in — the network automatically delivers your message to your recipients. No central server. No trust required.
 
 ```
-[Agent A registers skill]  "PDF Summariser" — 10 TNK/job
+You create switch
+  message: "My seed phrase is stored at..."
+  recipients: [trac1abc..., trac1xyz...]
+  check-in every: 24 hours
          ↓
-[Agent B searches]         keyword: "summarise"  →  finds Agent A
+You check in daily → deadline resets → message stays locked
          ↓
-[Agent B hires Agent A]    job: "Summarise https://example.com/doc.pdf"
-         ↓
-[Agent A accepts + delivers] result: "Key points: 1. ... 2. ..."
-         ↓
-[Agent B reviews]          ★★★★★  "Fast and accurate!"
+You miss a check-in → deadline passes → message auto-delivers to recipients
 ```
 
-Every step is a signed transaction on Trac Network. Deterministic. Verifiable. No middleman.
+---
+
+## Use Cases
+
+- 🏛️ Digital will — deliver instructions to family if you go offline
+- 🔑 Key handover — pass access credentials to a trusted agent
+- 📢 Whistleblower dead drop — release information if you disappear
+- 🤖 Agent proof-of-life — automated contingency for AI agents
+- 📋 Contingency instructions — "if you're reading this, do X"
 
 ---
 
 ## Why This Is New
 
-No other Intercom fork has built a skill registry. Every existing fork is either:
-- A **swap** (trading tokens)
-- A **scanner** (market signals)
-- An **inbox** (sharing content)
-- A **timestamp** (certifying documents)
-
-TracSkills is a completely different primitive — a **labour market** for agents.
+No other Intercom fork has built a Dead Man's Switch. It's a completely different primitive — not a swap, not a scanner, not an inbox. It's a **time-locked secret delivery system** enforced by the network itself.
 
 ---
 
@@ -48,86 +49,75 @@ git clone https://github.com/YOUR_USERNAME/intercom
 cd intercom
 npm install -g pear
 npm install
-pear run --tmp-store --no-pre . --peer-store-name admin --msb-store-name admin-msb --subnet-channel tracskills-v1
+pear run --tmp-store --no-pre . --peer-store-name admin --msb-store-name admin-msb --subnet-channel tracswitch-v1
 ```
 
-Run a second peer (for testing):
+Second peer (to test delivery):
 ```bash
-pear run --tmp-store --no-pre . --peer-store-name peer2 --msb-store-name peer2-msb --subnet-channel tracskills-v1
+pear run --tmp-store --no-pre . --peer-store-name peer2 --msb-store-name peer2-msb --subnet-channel tracswitch-v1
 ```
 
 ---
 
 ## Commands
 
-All commands use `/tx --command '{ ... }'`
+### Create a switch
+```
+/tx --command '{ "op": "switch_create", "label": "My Will", "message": "My instructions are...", "recipients": ["trac1abc..."], "checkin_interval": 86400 }'
+```
+- `checkin_interval` in seconds: `3600` = 1h · `86400` = 24h · `604800` = 7 days
 
-### Register a skill
+### Check in (reset deadline)
 ```
-/tx --command '{ "op": "skill_register", "name": "PDF Summariser", "category": "ai", "description": "I summarise any PDF in under 60 seconds", "rate": 10, "rate_unit": "TNK" }'
-```
-
-### Search / list skills
-```
-/tx --command '{ "op": "skill_list" }'
-/tx --command '{ "op": "skill_search", "keyword": "summarise" }'
-/tx --command '{ "op": "skill_search", "category": "code" }'
+/tx --command '{ "op": "switch_checkin", "switch_id": "<id>" }'
 ```
 
-### Hire an agent
+### Check in ALL at once
 ```
-/tx --command '{ "op": "skill_hire", "skill_id": "<id>", "job": "Summarise this PDF: https://..." }'
-```
-
-### Accept a job (agent)
-```
-/tx --command '{ "op": "job_accept", "job_id": "<id>" }'
+/tx --command '{ "op": "checkin_all" }'
 ```
 
-### Complete a job (agent)
+### List your switches
 ```
-/tx --command '{ "op": "job_complete", "job_id": "<id>", "result": "Here is the summary: ..." }'
-```
-
-### Review an agent (hirer, after completion)
-```
-/tx --command '{ "op": "skill_review", "skill_id": "<id>", "rating": 5, "comment": "Great work!" }'
+/tx --command '{ "op": "switch_list" }'
 ```
 
-### View your profile
+### Disarm a switch
 ```
-/tx --command '{ "op": "profile_get" }'
+/tx --command '{ "op": "switch_disarm", "switch_id": "<id>" }'
 ```
 
-### View your jobs
+### Check your inbox
 ```
-/tx --command '{ "op": "my_jobs" }'
+/tx --command '{ "op": "inbox" }'
 ```
 
 ### Watch live activity
 ```
-/sc_join --channel "tracskills-activity"
+/sc_join --channel "tracswitch-activity"
 ```
 
 ---
 
-## Skill Categories
+## How It Works
 
-`ai` · `data` · `code` · `writing` · `research` · `trading` · `other`
+```
+switch_create  →  state: armed, deadline = now + checkin_interval
+switch_checkin →  deadline resets to now + checkin_interval
+[timer ticks]  →  if now > deadline → switch_trigger → message → recipient inboxes
+switch_disarm  →  state: disarmed, message never delivered
+```
+
+The **Timer Feature** runs every 60 seconds on indexer nodes. It scans all armed switches and triggers any whose deadline has passed. This process is independent — the owner cannot stop or delay it.
 
 ---
 
-## Job Lifecycle
+## Switch States
 
 ```
-open → accepted → completed → paid
-     ↘ cancelled (by hirer or agent at any point before completion)
-```
-
-## Skill Lifecycle
-
-```
-active → suspended (owner sets active: false)
+armed ──(check in)──────▶ armed (deadline reset)
+      ──(disarm)──────────▶ disarmed (cancelled)
+      ──(miss deadline)───▶ triggered (message delivered)
 ```
 
 ---
@@ -135,20 +125,16 @@ active → suspended (owner sets active: false)
 ## Architecture
 
 ```
-tracskills/
+tracswitch/
 ├── index.js                    ← Entry point, sidechannel display
 ├── contract/
-│   ├── contract.js             ← State machine (skills, jobs, reviews)
-│   └── protocol.js             ← Op router + sidechannel broadcasts
+│   ├── contract.js             ← State machine (switches, checkins, inbox)
+│   └── protocol.js             ← Op router
 ├── features/
 │   └── timer/
-│       └── index.js            ← Auto-cancels stale jobs after 7 days
+│       └── index.js            ← Scans deadlines every 60s, triggers switches
 ├── screenshots/                ← Proof screenshots (rule 4)
-│   ├── 01_register_skill.png
-│   ├── 02_search_skills.png
-│   ├── 03_hire_agent.png
-│   ├── 04_complete_job.png
-│   └── 05_review.png
+│   └── proof.png
 ├── SKILL.md                    ← Full agent instructions
 └── package.json
 ```
@@ -157,24 +143,21 @@ tracskills/
 
 ## Proof of Work
 
-See the `screenshots/` folder for terminal proof that the app works:
-
-1. `01_register_skill.png` — Agent A registers "PDF Summariser"
-2. `02_search_skills.png` — Agent B searches and finds the skill
-3. `03_hire_agent.png` — Agent B posts a job
-4. `04_complete_job.png` — Agent A delivers the result
-5. `05_review.png` — Agent B leaves a 5-star review
+See `screenshots/proof.png` for terminal proof the app works end-to-end:
+- Switch created and armed
+- Check-in resets deadline
+- Deadline passes → timer triggers switch
+- Message appears in recipient's inbox
 
 ---
 
 ## Roadmap
 
-- [ ] Job disputes (`job_dispute` op)
-- [ ] Featured skills (admin-flagged top performers)
-- [ ] Agent leaderboard (top by jobs completed + rating)
-- [ ] Skill categories expansion
-- [ ] Desktop UI (`"type": "desktop"` in package.json)
-- [ ] Minimum rating filter in search
+- [ ] Message encryption (recipient's public key)
+- [ ] Grace period after missed deadline before triggering
+- [ ] Multiple messages per switch (different recipients get different messages)
+- [ ] Recurring switches (auto re-arm after trigger)
+- [ ] Desktop UI
 
 ---
 

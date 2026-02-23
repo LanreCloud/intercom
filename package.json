@@ -1,20 +1,20 @@
 {
-  "name": "tracskills",
+  "name": "tracswitch",
   "version": "1.0.0",
-  "description": "P2P Skill Registry for AI Agents on Trac Network — fork of Trac-Systems/intercom",
+  "description": "Dead Man's Switch on Trac Network — fork of Trac-Systems/intercom",
   "main": "index.js",
   "scripts": {
-    "start": "pear run --tmp-store --no-pre . --peer-store-name admin --msb-store-name admin-msb --subnet-channel tracskills-v1",
-    "dev":   "pear run -d --tmp-store --no-pre . --peer-store-name admin --msb-store-name admin-msb --subnet-channel tracskills-v1"
+    "start": "pear run --tmp-store --no-pre . --peer-store-name admin --msb-store-name admin-msb --subnet-channel tracswitch-v1",
+    "dev":   "pear run -d --tmp-store --no-pre . --peer-store-name admin --msb-store-name admin-msb --subnet-channel tracswitch-v1"
   },
   "pear": {
-    "name": "tracskills",
+    "name": "tracswitch",
     "type": "terminal"
   },
   "dependencies": {
     "trac-peer": "latest",
     "pear-interface": "latest"
   },
-  "keywords": ["trac-network", "skill-registry", "p2p", "agents", "pear", "intercom"],
+  "keywords": ["trac-network", "dead-mans-switch", "p2p", "pear", "intercom"],
   "license": "MIT"
 }
