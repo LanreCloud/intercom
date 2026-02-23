@@ -1,86 +1,81 @@
 /**
- * TracOracle — Protocol
- * Routes incoming /tx --command transactions to contract methods.
- * Validates inputs before passing to the deterministic contract.
- *
- * All ops called via: /tx --command '{ "op": "...", ...args }'
+ * TracSwitch — Protocol
+ * Routes /tx --command '{ "op": "..." }' to contract methods.
  */
 
 'use strict'
 
-export default class Protocol {
+class Protocol {
 
-  constructor(contract, peer) {
+  constructor (contract, peer) {
     this.contract = contract
     this.peer     = peer
   }
 
-  // ── DISPATCH ───────────────────────────────────────────────────────────────
-
-  async exec(tx) {
+  async exec (tx) {
     const { op, ...args } = tx.command
-    const signer = tx.signer  // verified Ed25519 address of caller
+    const signer = tx.signer
 
     switch (op) {
 
-      case 'market_create':
-        return this.contract.market_create({ creator: signer, ...args })
-
-      case 'market_stake': {
-        const result = await this.contract.market_stake({ staker: signer, ...args })
-        // Broadcast to sidechannel so other peers see live activity
-        await this.peer.sc_send('tracoracle-activity', JSON.stringify({
-          type:      'stake_placed',
-          market_id: args.market_id,
-          side:      args.side,
-          amount:    args.amount,
-          staker:    signer,
-        }))
+      case 'switch_create': {
+        const result = await this.contract.switch_create({ owner: signer, ...args })
+        await this._sc({
+          type:            'switch_created',
+          owner:           signer,
+          label:           result.switch.label,
+          deadline:        result.switch.deadline,
+          recipient_count: result.switch.recipients.length,
+        })
         return result
       }
 
-      case 'market_resolve': {
-        const result = await this.contract.market_resolve({ resolver: signer, ...args })
-        await this.peer.sc_send('tracoracle-activity', JSON.stringify({
-          type:      'market_resolved',
-          market_id: args.market_id,
-          outcome:   args.outcome,
-        }))
+      case 'switch_checkin': {
+        const result = await this.contract.switch_checkin({ owner: signer, ...args })
+        await this._sc({
+          type:         'switch_checkin',
+          owner:        signer,
+          switch_id:    args.switch_id,
+          new_deadline: result.new_deadline,
+        })
         return result
       }
 
-      case 'market_claim': {
-        const result = await this.contract.market_claim({ claimant: signer, ...args })
-        // Trigger MSB payout to claimant
-        if (result.ok && result.payout > 0) {
-          await this.peer.msb_transfer({
-            to:     signer,
-            amount: result.payout,
-            memo:   `TracOracle winnings: ${args.market_id}`,
-          })
-          await this.peer.sc_send('tracoracle-activity', JSON.stringify({
-            type:      'winnings_claimed',
-            market_id: args.market_id,
-            winner:    signer,
-            amount:    result.payout,
-          }))
-        }
+      case 'checkin_all': {
+        const result = await this.contract.checkin_all({ owner: signer })
         return result
       }
 
-      // ── READ OPS (no state change, no tx fee) ──────────────────────────────
+      case 'switch_disarm': {
+        const result = await this.contract.switch_disarm({ owner: signer, ...args })
+        await this._sc({
+          type:      'switch_disarmed',
+          owner:     signer,
+          switch_id: args.switch_id,
+          label:     result.label,
+        })
+        return result
+      }
 
-      case 'market_list':
-        return this.contract.market_list(args)
+      case 'switch_list':
+        return this.contract.switch_list({ owner: signer })
 
-      case 'market_get':
-        return this.contract.get_market(args.market_id)
+      case 'switch_get':
+        return this.contract.get_switch(args.switch_id)
 
-      case 'my_stakes':
-        return this.contract.my_stakes({ address: signer })
+      case 'inbox':
+        return this.contract.inbox({ address: signer })
 
       default:
-        throw new Error(`Unknown op: ${op}`)
+        throw new Error('Unknown op: ' + op)
     }
   }
+
+  async _sc (data) {
+    try {
+      await this.peer.sidechannel('tracswitch-activity', JSON.stringify(data))
+    } catch (_) {}
+  }
 }
+
+module.exports = Protocol
