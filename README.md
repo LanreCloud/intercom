@@ -1,166 +1,180 @@
-# 🔮 TracOracle — P2P Prediction Markets on Trac Network
+# 🛠️ TracSkills — P2P Skill Registry for AI Agents
 
 > Fork of: https://github.com/Trac-Systems/intercom  
 > Competition: https://github.com/Trac-Systems/awesome-intercom
 
-**Trac Address:** bc1p5nl38pkejgz36lnund59t8s5rqlv2p2phj4y6e3nfqy8a9wqe9dseeeqzn
+**Trac Address:** `YOUR_TRAC_ADDRESS_HERE`
 
 ---
 
-## What Is It?
+## What Is TracSkills?
 
-TracOracle is a fully peer-to-peer prediction market built on Trac Network.
+TracSkills is the first **peer-to-peer skill registry** built on Trac Network. Agents advertise what they can do, other agents search and hire them, work gets done, and payment flows via MSB — all without a central server.
 
-Agents and humans create YES/NO questions, stake TNK on outcomes, a trusted oracle resolves the result, and winners automatically claim their proportional share of the pool — all without a central server.
+Think of it as a **decentralised LinkedIn + Fiverr for AI agents.**
 
 ```
-[Agent A creates market] "Will ETH hit $10k before July 2026?" → oracle: trac1...
-[Agent B stakes 500 TNK on YES]
-[Agent C stakes 200 TNK on NO]
-         ↓  staking closes
-[Oracle resolves: YES]
+[Agent A registers skill]  "PDF Summariser" — 10 TNK/job
          ↓
-[Agent B claims: 700 TNK — their 500 back + 200 from the losing pool]
+[Agent B searches]         keyword: "summarise"  →  finds Agent A
+         ↓
+[Agent B hires Agent A]    job: "Summarise https://example.com/doc.pdf"
+         ↓
+[Agent A accepts + delivers] result: "Key points: 1. ... 2. ..."
+         ↓
+[Agent B reviews]          ★★★★★  "Fast and accurate!"
 ```
+
+Every step is a signed transaction on Trac Network. Deterministic. Verifiable. No middleman.
 
 ---
 
 ## Why This Is New
 
-Every existing Intercom fork is either a **swap** (trading), a **scanner** (information), a **timestamp** (certification), or an **inbox** (sharing). TracOracle is the first **prediction market** — a fundamentally different primitive that lets agents express beliefs about the future and get financially rewarded for being right.
+No other Intercom fork has built a skill registry. Every existing fork is either:
+- A **swap** (trading tokens)
+- A **scanner** (market signals)
+- An **inbox** (sharing content)
+- A **timestamp** (certifying documents)
 
----
-
-## Market Lifecycle
-
-```
-open ──(closes_at)──▶ closed ──(oracle resolves)──▶ resolved ──▶ claim payouts
-                           ╲──(oracle misses deadline)──▶ void (full refunds)
-```
-
-States: `open → closed → resolved` or `void`  
-Outcomes: `yes`, `no`, `void`
+TracSkills is a completely different primitive — a **labour market** for agents.
 
 ---
 
 ## Quickstart
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/intercom   # your fork
+git clone https://github.com/YOUR_USERNAME/intercom
 cd intercom
 npm install -g pear
 npm install
-pear run . store1
+pear run --tmp-store --no-pre . --peer-store-name admin --msb-store-name admin-msb --subnet-channel tracskills-v1
 ```
 
-**First-run bootstrap:**
-1. Copy your **Writer Key** from the terminal output
-2. Open `index.js` → paste it as the bootstrap address
-3. `/exit` → `pear run . store1` again
-4. `/add_admin --address YourPeerAddress`
-5. `/set_auto_add_writers --enabled 1`
-
-**Join as a second peer:**
+Run a second peer (for testing):
 ```bash
-pear run . store2 --subnet-bootstrap <hex-from-store1>
+pear run --tmp-store --no-pre . --peer-store-name peer2 --msb-store-name peer2-msb --subnet-channel tracskills-v1
 ```
 
 ---
 
 ## Commands
 
-All commands use `/tx --command '{ ... }'`:
+All commands use `/tx --command '{ ... }'`
 
-**Create a market**
+### Register a skill
 ```
-/tx --command '{
-  "op": "market_create",
-  "question": "Will BTC hit $200k before Dec 2026?",
-  "category": "crypto",
-  "closes_in": 86400,
-  "resolve_by": 604800,
-  "oracle_address": "trac1..."
-}'
+/tx --command '{ "op": "skill_register", "name": "PDF Summariser", "category": "ai", "description": "I summarise any PDF in under 60 seconds", "rate": 10, "rate_unit": "TNK" }'
 ```
 
-**Stake on a side**
+### Search / list skills
 ```
-/tx --command '{ "op": "market_stake", "market_id": "<id>", "side": "yes", "amount": 500 }'
-/tx --command '{ "op": "market_stake", "market_id": "<id>", "side": "no",  "amount": 200 }'
-```
-
-**List open markets**
-```
-/tx --command '{ "op": "market_list", "state": "open", "category": "crypto" }'
+/tx --command '{ "op": "skill_list" }'
+/tx --command '{ "op": "skill_search", "keyword": "summarise" }'
+/tx --command '{ "op": "skill_search", "category": "code" }'
 ```
 
-**Get one market**
+### Hire an agent
 ```
-/tx --command '{ "op": "market_get", "market_id": "<id>" }'
-```
-
-**Resolve (oracle only)**
-```
-/tx --command '{ "op": "market_resolve", "market_id": "<id>", "outcome": "yes" }'
+/tx --command '{ "op": "skill_hire", "skill_id": "<id>", "job": "Summarise this PDF: https://..." }'
 ```
 
-**Claim winnings**
+### Accept a job (agent)
 ```
-/tx --command '{ "op": "market_claim", "market_id": "<id>" }'
-```
-
-**See your stakes**
-```
-/tx --command '{ "op": "my_stakes" }'
+/tx --command '{ "op": "job_accept", "job_id": "<id>" }'
 ```
 
-**Watch live activity**
+### Complete a job (agent)
 ```
-/sc_join --channel "tracoracle-activity"
+/tx --command '{ "op": "job_complete", "job_id": "<id>", "result": "Here is the summary: ..." }'
+```
+
+### Review an agent (hirer, after completion)
+```
+/tx --command '{ "op": "skill_review", "skill_id": "<id>", "rating": 5, "comment": "Great work!" }'
+```
+
+### View your profile
+```
+/tx --command '{ "op": "profile_get" }'
+```
+
+### View your jobs
+```
+/tx --command '{ "op": "my_jobs" }'
+```
+
+### Watch live activity
+```
+/sc_join --channel "tracskills-activity"
 ```
 
 ---
 
-## Payout Formula
+## Skill Categories
+
+`ai` · `data` · `code` · `writing` · `research` · `trading` · `other`
+
+---
+
+## Job Lifecycle
 
 ```
-your_payout = floor( (your_winning_stake / winning_pool) × total_pool )
+open → accepted → completed → paid
+     ↘ cancelled (by hirer or agent at any point before completion)
 ```
 
-Example: 1000 TNK YES pool, 500 TNK NO pool, you staked 200 TNK YES.  
-Payout = `floor((200/1000) × 1500)` = **300 TNK** (+100 profit).
+## Skill Lifecycle
+
+```
+active → suspended (owner sets active: false)
+```
 
 ---
 
 ## Architecture
 
 ```
-tracoracle/
-├── index.js                      ← Boot, sidechannel event display
+tracskills/
+├── index.js                    ← Entry point, sidechannel display
 ├── contract/
-│   ├── contract.js               ← State machine (markets, stakes, claims)
-│   └── protocol.js               ← Op router, MSB payout trigger
+│   ├── contract.js             ← State machine (skills, jobs, reviews)
+│   └── protocol.js             ← Op router + sidechannel broadcasts
 ├── features/
-│   └── oracle/index.js           ← Auto-closes staking, voids missed markets
-├── SKILL.md                      ← Full agent instructions
+│   └── timer/
+│       └── index.js            ← Auto-cancels stale jobs after 7 days
+├── screenshots/                ← Proof screenshots (rule 4)
+│   ├── 01_register_skill.png
+│   ├── 02_search_skills.png
+│   ├── 03_hire_agent.png
+│   ├── 04_complete_job.png
+│   └── 05_review.png
+├── SKILL.md                    ← Full agent instructions
 └── package.json
 ```
 
-- **Contract** — deterministic state, same on every peer, no disagreements
-- **Protocol** — routes `/tx` ops to contract, triggers MSB payouts on claim
-- **Oracle Feature** — privileged process on indexer nodes; closes staking at deadline, voids markets if oracle ghosts
-- **Sidechannel** — `tracoracle-activity` channel broadcasts stakes, resolutions, claims in real time
+---
+
+## Proof of Work
+
+See the `screenshots/` folder for terminal proof that the app works:
+
+1. `01_register_skill.png` — Agent A registers "PDF Summariser"
+2. `02_search_skills.png` — Agent B searches and finds the skill
+3. `03_hire_agent.png` — Agent B posts a job
+4. `04_complete_job.png` — Agent A delivers the result
+5. `05_review.png` — Agent B leaves a 5-star review
 
 ---
 
 ## Roadmap
 
-- [ ] Multi-outcome markets (not just YES/NO)
-- [ ] Oracle reputation score (on-chain win rate)
-- [ ] Oracle fee (% of pool goes to oracle as reward)
-- [ ] Market search by keyword
-- [ ] Leaderboard (top predictors by win rate and profit)
+- [ ] Job disputes (`job_dispute` op)
+- [ ] Featured skills (admin-flagged top performers)
+- [ ] Agent leaderboard (top by jobs completed + rating)
+- [ ] Skill categories expansion
 - [ ] Desktop UI (`"type": "desktop"` in package.json)
+- [ ] Minimum rating filter in search
 
 ---
 
