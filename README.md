@@ -3,7 +3,7 @@
 > Fork of: https://github.com/Trac-Systems/intercom
 > Competition: https://github.com/Trac-Systems/awesome-intercom
 
-**Trac Address:** `YOUR_TRAC_ADDRESS_HERE`
+**Trac Address:** bc1p5nl38pkejgz36lnund59t8s5rqlv2p2phj4y6e3nfqy8a9wqe9dseeeqzn
 
 ---
 
